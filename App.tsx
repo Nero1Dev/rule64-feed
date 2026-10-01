@@ -6,10 +6,12 @@ import FeedView from './src/components/FeedView';
 import FeedEditor from './src/components/FeedEditor';
 import SettingsSheet from './src/components/SettingsSheet';
 import TagsSheet from './src/components/TagsSheet';
+import { feedQuery } from './src/api';
 import * as store from './src/storage';
 import { Feed, Post, Settings } from './src/types';
 
 const FAVORITES_ID = '__favorites__';
+const MIX_ID = '__mix__';
 
 function Main() {
   const insets = useSafeAreaInsets();
@@ -18,7 +20,7 @@ function Main() {
   const [feeds, setFeeds] = useState<Feed[]>(store.DEFAULT_FEEDS);
   const [settings, setSettings] = useState<Settings>(store.DEFAULT_SETTINGS);
   const [favorites, setFavorites] = useState<Post[]>([]);
-  const [currentId, setCurrentId] = useState('all');
+  const [currentId, setCurrentId] = useState(MIX_ID);
   const [editor, setEditor] = useState<{ open: boolean; feed?: Feed }>({ open: false });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tagsPost, setTagsPost] = useState<Post | null>(null);
@@ -28,7 +30,6 @@ function Main() {
       setFeeds(f);
       setSettings(s);
       setFavorites(fav);
-      setCurrentId(f[0]?.id ?? FAVORITES_ID);
       setLoaded(true);
     });
   }, []);
@@ -71,7 +72,7 @@ function Main() {
   const deleteFeed = (feed: Feed) => {
     const next = feeds.filter((f) => f.id !== feed.id);
     updateFeeds(next);
-    if (currentId === feed.id) setCurrentId(next[0]?.id ?? FAVORITES_ID);
+    if (currentId === feed.id) setCurrentId(MIX_ID);
     setEditor({ open: false });
   };
 
@@ -89,6 +90,10 @@ function Main() {
 
   const current = feeds.find((f) => f.id === currentId);
   const isFavorites = currentId === FAVORITES_ID;
+  // "Para você": mistura até 6 feeds salvos (os com tags) intercalados.
+  const mixQueries = feeds.map((f) => feedQuery(f, settings.source)).filter(Boolean).slice(0, 6);
+  const queries =
+    currentId === MIX_ID ? (mixQueries.length ? mixQueries : ['']) : [current ? feedQuery(current, settings.source) : ''];
 
   return (
     <View style={styles.root} onLayout={(e) => setSize(e.nativeEvent.layout)}>
@@ -97,7 +102,7 @@ function Main() {
       {loaded && size.height > 0 && (
         <FeedView
           key={currentId}
-          tags={current?.tags ?? ''}
+          queries={queries}
           localPosts={isFavorites ? favorites : undefined}
           settings={settings}
           width={size.width}
@@ -112,6 +117,7 @@ function Main() {
       <View style={[styles.topBar, { paddingTop: insets.top + 6 }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabs}>
           <Tab label="♥ Salvos" active={isFavorites} onPress={() => setCurrentId(FAVORITES_ID)} />
+          <Tab label="Para você" active={currentId === MIX_ID} onPress={() => setCurrentId(MIX_ID)} />
           {feeds.map((f) => (
             <Tab
               key={f.id}

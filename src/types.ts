@@ -18,11 +18,14 @@ export type Post = {
 export type Feed = {
   id: string;
   name: string;
-  tags: string; // tags separadas por espaço, sintaxe do rule34 (ex.: "overwatch -ai_generated")
+  tags: string; // tags separadas por espaço, sintaxe do site (ex.: "overwatch -ai_generated")
+  preset?: PresetKey; // feed pronto: as tags certas são escolhidas conforme a fonte
 };
 
+export type PresetKey = 'lesbian' | 'futa';
+
 export type MediaFilter = 'all' | 'video' | 'image';
-export type SortMode = 'recent' | 'score';
+export type SortMode = 'random' | 'recent' | 'score';
 export type Source = 'paheal' | 'e621' | 'rule34xxx';
 
 export type Settings = {
@@ -32,5 +35,6 @@ export type Settings = {
   blacklist: string[];
   mediaFilter: MediaFilter;
   sort: SortMode;
+  hideGay: boolean;
   muted: boolean;
 };

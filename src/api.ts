@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { MediaKind, Post, Settings, Source } from './types';
+import { Feed, MediaKind, Post, PresetKey, Settings, Source } from './types';
 
 const IS_WEB = Platform.OS === 'web';
 const UA = 'rule34-feed/1.0 (by nero1dev)';
@@ -9,7 +9,25 @@ const HEADERS: Record<string, string> | undefined = IS_WEB ? undefined : { 'User
 // Sempre bloqueadas, não editáveis pelo usuário.
 export const HARD_BLOCKED = ['loli', 'shota', 'child', 'toddler', 'cub', 'young', 'underage'];
 
+// Conteúdo gay masculino, escondido quando "Ocultar conteúdo gay" está ligado (padrão).
+export const GAY_TAGS = ['gay', 'yaoi', 'male/male', 'male_only', 'male_on_male', 'bara'];
+
 export const PAGE_SIZE = 20;
+
+// Feeds prontos: cada site usa nomes de tag diferentes para a mesma coisa.
+export const PRESETS: Record<PresetKey, { label: string; tags: Record<Source, string> }> = {
+  lesbian: { label: 'Lésbico', tags: { paheal: 'lesbian', e621: 'female/female', rule34xxx: 'lesbian' } },
+  futa: { label: 'Futa', tags: { paheal: 'futanari', e621: 'gynomorph', rule34xxx: 'futanari' } },
+};
+
+export function feedQuery(feed: Pick<Feed, 'tags' | 'preset'>, source: Source): string {
+  return feed.preset ? PRESETS[feed.preset].tags[source] : feed.tags;
+}
+
+// Tags negativas adicionadas à busca (o resto é filtrado no app depois).
+function excludes(s: Settings): string[] {
+  return (s.hideGay ? GAY_TAGS : []).map((t) => `-${t}`);
+}
 
 export const SOURCES: Record<Source, { label: string; site: string }> = {
   paheal: { label: 'Paheal', site: 'https://rule34.paheal.net' },
@@ -42,7 +60,7 @@ async function getText(url: string): Promise<string> {
   const text = await res.text();
   if (!res.ok) {
     if (text.startsWith('PROXY_FAIL') || /<html/i.test(text)) {
-      throw new ApiError('O PC que roda o servidor não consegue acessar o Paheal. Troque a fonte para e621 em ⚙.');
+      throw new ApiError('O servidor não conseguiu acessar o Paheal (rede bloqueada?). Troque a fonte para e621 em ⚙.');
     }
     throw new ApiError(`HTTP ${res.status}: ${text.slice(0, 150)}`);
   }
@@ -54,10 +72,11 @@ async function getText(url: string): Promise<string> {
 const decode = (s: string) =>
   s.replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 
-async function fetchPaheal(tags: string, page: number, s: Settings): Promise<Page> {
-  const parts = feedTags(tags);
+async function fetchPaheal(tags: string, page: number, s: Settings, seed: number): Promise<Page> {
+  const parts = [...feedTags(tags), ...excludes(s)];
   if (s.mediaFilter === 'video') parts.push('ext:mp4');
   if (s.sort === 'score') parts.push('order:score_desc');
+  if (s.sort === 'random') parts.push(`order:random_${seed}`); // semente fixa = páginas sem repetição
   const params = new URLSearchParams({ limit: String(PAGE_SIZE), page: String(page + 1), tags: parts.join(' ') });
   const xml = await getText(`${PAHEAL_API}/api/danbooru/find_posts?${params}`);
 
@@ -93,11 +112,12 @@ type E621Post = {
   sources: string[];
 };
 
-async function fetchE621(tags: string, page: number, s: Settings): Promise<Page> {
-  const parts = feedTags(tags);
+async function fetchE621(tags: string, page: number, s: Settings, seed: number): Promise<Page> {
+  const parts = [...feedTags(tags), ...excludes(s)];
   if (s.mediaFilter === 'video') parts.push('~type:webm', '~type:mp4');
   if (s.mediaFilter === 'image') parts.push('-animated');
   if (s.sort === 'score') parts.push('order:score');
+  if (s.sort === 'random') parts.push('order:random', `randseed:${seed}`);
   const params = new URLSearchParams({ limit: String(PAGE_SIZE), page: String(page + 1), tags: parts.join(' ') });
   if (IS_WEB) params.set('_client', UA);
   const data = JSON.parse(await getText(`${E621_API}/posts.json?${params}`)) as { posts: E621Post[] };
@@ -137,14 +157,15 @@ type R34Post = {
   source: string;
 };
 
-async function fetchRule34xxx(tags: string, page: number, s: Settings): Promise<Page> {
+async function fetchRule34xxx(tags: string, page: number, s: Settings, _seed: number): Promise<Page> {
   if (!s.apiKey || !s.userId) {
     throw new ApiError('O rule34.xxx exige api_key e user_id. Configure em ⚙ ou troque a fonte.');
   }
-  const parts = feedTags(tags);
+  const parts = [...feedTags(tags), ...excludes(s)];
   if (s.mediaFilter === 'video') parts.push('video');
   if (s.mediaFilter === 'image') parts.push('-video', '-animated');
   if (s.sort === 'score') parts.push('sort:score:desc');
+  if (s.sort === 'random') parts.push('sort:random');
   for (const t of HARD_BLOCKED) parts.push(`-${t}`);
   const params = new URLSearchParams({
     page: 'dapi',
@@ -182,15 +203,17 @@ async function fetchRule34xxx(tags: string, page: number, s: Settings): Promise<
 
 // ---------- API comum ----------
 
-const FETCHERS: Record<Source, (tags: string, page: number, s: Settings) => Promise<Page>> = {
+const FETCHERS: Record<Source, (tags: string, page: number, s: Settings, seed: number) => Promise<Page>> = {
   paheal: fetchPaheal,
   e621: fetchE621,
   rule34xxx: fetchRule34xxx,
 };
 
-export async function fetchPosts(tags: string, page: number, settings: Settings): Promise<Page> {
-  const { posts, rawCount } = await FETCHERS[settings.source](tags, page, settings);
-  const blocked = new Set([...HARD_BLOCKED, ...settings.blacklist].map((t) => t.toLowerCase()));
+export async function fetchPosts(tags: string, page: number, settings: Settings, seed = 0): Promise<Page> {
+  const { posts, rawCount } = await FETCHERS[settings.source](tags, page, settings, seed);
+  const blocked = new Set(
+    [...HARD_BLOCKED, ...settings.blacklist, ...(settings.hideGay ? GAY_TAGS : [])].map((t) => t.toLowerCase()),
+  );
   const filtered = posts.filter(
     (p) =>
       p.fileUrl &&

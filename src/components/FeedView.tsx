@@ -5,7 +5,7 @@ import { Post, Settings } from '../types';
 import MediaItem from './MediaItem';
 
 type Props = {
-  tags: string;
+  queries: string[]; // uma busca, ou várias intercaladas (feed "Para você")
   localPosts?: Post[]; // feed local (favoritos) em vez da API
   settings: Settings;
   width: number;
@@ -16,8 +16,17 @@ type Props = {
   onShowTags: (post: Post) => void;
 };
 
+// Intercala as listas: a1, b1, c1, a2, b2, ...
+function interleave<T>(lists: T[][]): T[] {
+  const out: T[] = [];
+  for (let i = 0; lists.some((l) => i < l.length); i++) for (const l of lists) if (i < l.length) out.push(l[i]);
+  return out;
+}
+
 export default function FeedView(props: Props) {
-  const { tags, localPosts, settings, width, height } = props;
+  const { localPosts, settings, width, height } = props;
+  const queryKey = JSON.stringify(props.queries); // string estável para as dependências do useCallback
+  const [seed] = useState(() => Math.floor(Math.random() * 10000));
   const [posts, setPosts] = useState<Post[]>([]);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -26,30 +35,44 @@ export default function FeedView(props: Props) {
   const [activeIndex, setActiveIndex] = useState(0);
   const requestId = useRef(0);
   const listRef = useRef<FlatList<Post>>(null);
+  const postsRef = useRef<Post[]>([]);
+  postsRef.current = posts;
 
   const loadPage = useCallback(
-    async (p: number, reset = false) => {
+    async (start: number, reset = false) => {
       const id = ++requestId.current;
       setLoading(true);
       setError(null);
       try {
-        const { posts: batch, rawCount } = await fetchPosts(tags, p, settings);
-        if (id !== requestId.current) return;
-        setPosts((prev) => {
-          if (reset) return batch;
-          const seen = new Set(prev.map((x) => x.id));
-          return [...prev, ...batch.filter((x) => !seen.has(x.id))];
-        });
-        setPage(p);
-        // A blacklist local pode filtrar a página inteira, então só para quando a API não retornar nada.
-        setDone(rawCount === 0);
+        const queries = JSON.parse(queryKey) as string[];
+        const known = new Set(reset ? [] : postsRef.current.map((x) => x.id));
+        const added: Post[] = [];
+        let p = start;
+        let ended = false;
+        // Os filtros podem esvaziar uma página inteira: busca as seguintes até ter o que mostrar.
+        for (let tries = 0; tries < 5 && added.length < 3 && !ended; tries++, p++) {
+          const results = await Promise.allSettled(queries.map((q) => fetchPosts(q, p, settings, seed)));
+          if (id !== requestId.current) return;
+          const ok = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
+          if (!ok.length) throw (results[0] as PromiseRejectedResult).reason;
+          ended = ok.every((r) => r.rawCount === 0);
+          for (const post of interleave(ok.map((r) => r.posts))) {
+            if (!known.has(post.id)) {
+              known.add(post.id);
+              added.push(post);
+            }
+          }
+        }
+        setPosts((prev) => (reset ? added : [...prev, ...added]));
+        setPage(p - 1);
+        setDone(ended);
       } catch (e) {
         if (id === requestId.current) setError(e instanceof Error ? e.message : String(e));
       } finally {
         if (id === requestId.current) setLoading(false);
       }
     },
-    [tags, settings.source, settings.apiKey, settings.userId, settings.mediaFilter, settings.sort, settings.blacklist],
+    [queryKey, seed, settings.source, settings.apiKey, settings.userId, settings.mediaFilter, settings.sort, settings.hideGay, settings.blacklist],
   );
 
   useEffect(() => {

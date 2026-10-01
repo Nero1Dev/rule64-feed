@@ -4,9 +4,9 @@ import { Feed, Post, Settings } from './types';
 const KEYS = { feeds: 'feeds', settings: 'settings', favorites: 'favorites' };
 
 export const DEFAULT_FEEDS: Feed[] = [
+  { id: 'lesbian', name: 'Lésbico', tags: '', preset: 'lesbian' },
+  { id: 'futa', name: 'Futa', tags: '', preset: 'futa' },
   { id: 'all', name: 'Tudo', tags: '' },
-  { id: 'genshin', name: 'Genshin', tags: 'genshin_impact' },
-  { id: 'overwatch', name: 'Overwatch', tags: 'overwatch' },
 ];
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -15,7 +15,8 @@ export const DEFAULT_SETTINGS: Settings = {
   userId: '',
   blacklist: ['ai_generated', 'gore', 'scat'],
   mediaFilter: 'all',
-  sort: 'recent',
+  sort: 'random',
+  hideGay: true,
   muted: true,
 };
 

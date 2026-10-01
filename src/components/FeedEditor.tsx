@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { autocomplete, TagSuggestion } from '../api';
-import { Feed, Source } from '../types';
+import { autocomplete, PRESETS, TagSuggestion } from '../api';
+import { Feed, PresetKey, Source } from '../types';
 import { ui } from './ui';
 
 type Props = {
@@ -48,7 +48,11 @@ export default function FeedEditor({ visible, source, initial, onClose, onSave, 
 
   const save = () => {
     const finalTags = input.trim() ? [...tags, input.trim().replace(/\s+/g, '_')] : tags;
-    if (!finalTags.length) return;
+    if (!finalTags.length) {
+      // Feed pronto sem tags extras: mantém o preset (só renomeia).
+      if (initial?.preset) onSave({ ...initial, name: name.trim() || initial.name });
+      return;
+    }
     onSave({
       id: initial?.id ?? String(Date.now()),
       name: name.trim() || finalTags.filter((t) => !t.startsWith('-'))[0] || finalTags[0],
@@ -61,6 +65,23 @@ export default function FeedEditor({ visible, source, initial, onClose, onSave, 
       <View style={ui.backdrop}>
         <View style={[ui.sheet, { height: '85%' }]}>
           <Text style={ui.title}>{initial ? 'Editar feed' : 'Novo feed por tema'}</Text>
+
+          {!initial && (
+            <>
+              <Text style={ui.label}>Prontos (tags certas para cada fonte)</Text>
+              <View style={styles.chips}>
+                {(Object.keys(PRESETS) as PresetKey[]).map((k) => (
+                  <Pressable
+                    key={k}
+                    style={styles.chip}
+                    onPress={() => onSave({ id: String(Date.now()), name: PRESETS[k].label, tags: '', preset: k })}
+                  >
+                    <Text style={styles.chipText}>＋ {PRESETS[k].label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          )}
 
           <Text style={ui.label}>Nome</Text>
           <TextInput style={ui.input} value={name} onChangeText={setName} placeholder="Ex.: Overwatch" placeholderTextColor="#666" />

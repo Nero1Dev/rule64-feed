@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Linking, Modal, Pressable, ScrollView, Switch, Text, TextInput, View } from 'react-native';
 import { HARD_BLOCKED, SOURCES } from '../api';
 import { MediaFilter, Settings, SortMode, Source } from '../types';
 import { ui } from './ui';
@@ -65,9 +65,18 @@ export default function SettingsSheet({ visible, settings, onClose, onSave }: Pr
             <Text style={ui.label}>Ordem</Text>
             <Segment<SortMode>
               value={draft.sort}
-              options={[['recent', 'Recentes'], ['score', 'Mais votados']]}
+              options={[['random', 'Aleatório'], ['recent', 'Recentes'], ['score', 'Mais votados']]}
               onChange={(sort) => setDraft({ ...draft, sort })}
             />
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 }}>
+              <Text style={{ color: '#fff', fontSize: 15 }}>Ocultar conteúdo gay (masculino)</Text>
+              <Switch
+                value={draft.hideGay}
+                onValueChange={(hideGay) => setDraft({ ...draft, hideGay })}
+                trackColor={{ true: '#ff2d55', false: '#444' }}
+              />
+            </View>
 
             <Text style={ui.label}>Blacklist (tags separadas por espaço)</Text>
             <TextInput

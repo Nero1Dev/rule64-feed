@@ -46,7 +46,7 @@ function VideoMedia({ post, active, muted }: { post: Post; active: boolean; mute
       )}
       <VideoView
         player={player}
-        style={StyleSheet.absoluteFill}
+        style={styles.fill}
         contentFit="contain"
         nativeControls={false}
         playsInline
@@ -112,6 +112,9 @@ export default memo(MediaItem);
 const shadow = { textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 4 };
 
 const styles = StyleSheet.create({
+  // Largura/altura explícitas: na web o <video> com só left/right/top/bottom ficaria no tamanho
+  // original e seria cortado em vez de se ajustar à tela.
+  fill: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   center: { position: 'absolute', alignSelf: 'center', top: '45%' },
   pauseIcon: { fontSize: 64, color: 'rgba(255,255,255,0.8)' },
   actions: { position: 'absolute', right: 10, bottom: 140, alignItems: 'center', gap: 20 },
