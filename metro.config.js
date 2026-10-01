@@ -28,8 +28,9 @@ config.server = {
           res.end(Buffer.from(await r.arrayBuffer()));
         })
         .catch((e) => {
-          res.statusCode = 502;
-          res.end(`Proxy falhou: ${e.cause?.code || e.message}`);
+          // 4xx para a Cloudflare (túnel) não trocar a resposta pela página de erro dela.
+          res.statusCode = 424;
+          res.end(`PROXY_FAIL ${e.cause?.code || e.message}`);
         });
     };
   },

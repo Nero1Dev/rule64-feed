@@ -40,7 +40,12 @@ function feedTags(tags: string): string[] {
 async function getText(url: string): Promise<string> {
   const res = await fetch(url, { headers: HEADERS });
   const text = await res.text();
-  if (!res.ok) throw new ApiError(`HTTP ${res.status}: ${text.slice(0, 150)}`);
+  if (!res.ok) {
+    if (text.startsWith('PROXY_FAIL') || /<html/i.test(text)) {
+      throw new ApiError('O PC que roda o servidor não consegue acessar o Paheal. Troque a fonte para e621 em ⚙.');
+    }
+    throw new ApiError(`HTTP ${res.status}: ${text.slice(0, 150)}`);
+  }
   return text;
 }
 
