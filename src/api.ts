@@ -250,13 +250,17 @@ const REDGIFS_ORDER: Record<Settings['sort'], string> = { recent: 'latest', scor
 async function fetchRedgifs(tags: string, page: number, s: Settings): Promise<Page> {
   if (s.mediaFilter === 'image') return { posts: [], rawCount: 0 }; // RedGIFs é só vídeo
   const params = new URLSearchParams({ order: REDGIFS_ORDER[s.sort], count: String(PAGE_SIZE), page: String(page + 1) });
-  const search = feedTags(tags).join(',');
-  if (search) params.set('search_text', search);
+  // As tags do RedGIFs têm espaços ("Big Tits"); no app elas usam "_". Várias tags = qualquer uma delas.
+  // O RedGIFs não aceita exclusão: as tags com "-" são filtradas aqui.
+  const all = feedTags(tags).map((t) => t.replace(/_/g, ' '));
+  const include = all.filter((t) => !t.startsWith('-'));
+  const exclude = new Set(all.filter((t) => t.startsWith('-')).map((t) => t.slice(1).toLowerCase()));
+  if (include.length) params.set('tags', include.join(','));
   const data = JSON.parse(await redgifsGet(`v2/gifs/search?${params}`)) as { gifs?: RedgifsGif[] };
   const gifs = data.gifs ?? [];
 
   const posts = gifs
-    .filter((g) => g.urls.sd || g.urls.hd)
+    .filter((g) => (g.urls.sd || g.urls.hd) && !(g.tags ?? []).some((t) => exclude.has(t.toLowerCase())))
     .map((g): Post => {
       const url = g.urls.sd ?? g.urls.hd!; // SD: carrega rápido e gasta menos banda
       return {
@@ -355,11 +359,12 @@ export async function autocomplete(q: string, source: Source): Promise<TagSugges
       list = data.map((t) => ({ label: `${t.name} (${t.post_count})`, value: t.name }));
     } else if (source === 'redgifs') {
       const data = JSON.parse(await redgifsGet(`v2/search/suggest?query=${encodeURIComponent(term)}`));
-      const items: { text?: string; name?: string; count?: number; gifs?: number }[] = Array.isArray(data)
+      const items: { type?: string; text?: string; name?: string; count?: number; gifs?: number }[] = Array.isArray(data)
         ? data
         : (data.tags ?? data.items ?? []);
       list = items
-        .map((t) => ({ name: t.text ?? t.name ?? '', count: t.count ?? t.gifs }))
+        .filter((t) => !t.type || t.type === 'tag') // a busca também sugere usuários e nichos
+        .map((t) => ({ name: (t.text ?? t.name ?? '').trim(), count: t.count ?? t.gifs }))
         .filter((t) => t.name)
         .map((t) => ({ label: t.count != null ? `${t.name} (${t.count})` : t.name, value: t.name.replace(/\s+/g, '_') }));
     } else {
