@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View, ViewToken } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, Text, View, ViewToken } from 'react-native';
 import { fetchPosts, PAGE_SIZE } from '../api';
 import { Post, Settings } from '../types';
 import MediaItem from './MediaItem';
@@ -123,7 +123,7 @@ export default function FeedView(props: Props) {
       windowSize={5}
       initialNumToRender={2}
       maxToRenderPerBatch={3}
-      removeClippedSubviews
+      removeClippedSubviews={Platform.OS !== 'web'}
       ListFooterComponent={
         error ? (
           <Pressable style={[styles.footer, { width }]} onPress={() => loadPage(page + 1)}>

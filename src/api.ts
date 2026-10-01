@@ -1,7 +1,10 @@
+import { Platform } from 'react-native';
 import { MediaKind, Post, Settings } from './types';
 
 const API = 'https://api.rule34.xxx';
-const HEADERS = { 'User-Agent': 'rule34-feed/1.0', Referer: 'https://rule34.xxx/' };
+// No navegador não dá pra definir User-Agent/Referer (e headers extras forçariam preflight CORS).
+const HEADERS: Record<string, string> | undefined =
+  Platform.OS === 'web' ? undefined : { 'User-Agent': 'rule34-feed/1.0', Referer: 'https://rule34.xxx/' };
 
 // Sempre bloqueadas, não editáveis pelo usuário.
 export const HARD_BLOCKED = ['loli', 'shota', 'child', 'toddler', 'cub', 'young', 'underage'];

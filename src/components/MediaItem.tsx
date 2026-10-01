@@ -49,6 +49,7 @@ function VideoMedia({ post, active, muted }: { post: Post; active: boolean; mute
         style={StyleSheet.absoluteFill}
         contentFit="contain"
         nativeControls={false}
+        playsInline
         onFirstFrameRender={() => setReady(true)}
       />
       {!ready && <ActivityIndicator style={styles.center} color="#fff" size="large" />}

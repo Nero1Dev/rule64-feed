@@ -8,7 +8,16 @@ App mobile (Expo / React Native) estilo TikTok para rolar as mídias do rule34.x
 - Salvos (♥), blacklist, filtro de tipo de mídia, ordenação por votos
 - Tags de conteúdo envolvendo menores são sempre bloqueadas
 
-## Rodar
+## Rodar (web / PWA)
+
+```bash
+npm install
+npx expo start --web --port 8081
+```
+
+Abra no navegador do celular e use "Adicionar à tela inicial".
+
+## Rodar (Expo Go)
 
 ```bash
 npm install
