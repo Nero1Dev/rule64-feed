@@ -24,10 +24,6 @@ export function feedQuery(feed: Pick<Feed, 'tags' | 'preset'>, source: Source): 
   return feed.preset ? PRESETS[feed.preset].tags[source] : feed.tags;
 }
 
-// Tags negativas adicionadas à busca (o resto é filtrado no app depois).
-function excludes(s: Settings): string[] {
-  return (s.hideGay ? GAY_TAGS : []).map((t) => `-${t}`);
-}
 
 export const SOURCES: Record<Source, { label: string; site: string }> = {
   paheal: { label: 'Paheal', site: 'https://rule34.paheal.net' },
@@ -78,12 +74,10 @@ async function getText(url: string): Promise<string> {
 const decode = (s: string) =>
   s.replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 
-async function fetchPaheal(tags: string, page: number, s: Settings, seed: number): Promise<Page> {
-  // Sem tags negativas aqui: busca só com exclusões pesa demais no paheal. Os ocultos são filtrados no app.
+async function fetchPaheal(tags: string, page: number, s: Settings): Promise<Page> {
   const parts = feedTags(tags);
   if (s.mediaFilter === 'video') parts.push('ext:mp4');
   if (s.sort === 'score') parts.push('order:score_desc');
-  if (s.sort === 'random') parts.push(`order:random_${seed}`); // semente fixa = páginas sem repetição
   const params = new URLSearchParams({ limit: String(PAGE_SIZE), page: String(page + 1), tags: parts.join(' ') });
   const xml = await getText(`${PAHEAL_API}/api/danbooru/find_posts?${params}`);
 
@@ -119,12 +113,11 @@ type E621Post = {
   sources: string[];
 };
 
-async function fetchE621(tags: string, page: number, s: Settings, seed: number): Promise<Page> {
-  const parts = [...feedTags(tags), ...excludes(s)];
+async function fetchE621(tags: string, page: number, s: Settings): Promise<Page> {
+  const parts = feedTags(tags);
   if (s.mediaFilter === 'video') parts.push('~type:webm', '~type:mp4');
   if (s.mediaFilter === 'image') parts.push('-animated');
   if (s.sort === 'score') parts.push('order:score');
-  if (s.sort === 'random') parts.push('order:random', `randseed:${seed}`);
   const params = new URLSearchParams({ limit: String(PAGE_SIZE), page: String(page + 1), tags: parts.join(' ') });
   if (IS_WEB) params.set('_client', UA);
   const data = JSON.parse(await getText(`${E621_API}/posts.json?${params}`)) as { posts: E621Post[] };
@@ -164,15 +157,14 @@ type R34Post = {
   source: string;
 };
 
-async function fetchRule34xxx(tags: string, page: number, s: Settings, _seed: number): Promise<Page> {
+async function fetchRule34xxx(tags: string, page: number, s: Settings): Promise<Page> {
   if (!s.apiKey || !s.userId) {
     throw new ApiError('O rule34.xxx exige api_key e user_id. Configure em ⚙ ou troque a fonte.');
   }
-  const parts = [...feedTags(tags), ...excludes(s)];
+  const parts = feedTags(tags);
   if (s.mediaFilter === 'video') parts.push('video');
   if (s.mediaFilter === 'image') parts.push('-video', '-animated');
   if (s.sort === 'score') parts.push('sort:score:desc');
-  if (s.sort === 'random') parts.push('sort:random');
   for (const t of HARD_BLOCKED) parts.push(`-${t}`);
   const params = new URLSearchParams({
     page: 'dapi',
@@ -210,14 +202,50 @@ async function fetchRule34xxx(tags: string, page: number, s: Settings, _seed: nu
 
 // ---------- API comum ----------
 
-const FETCHERS: Record<Source, (tags: string, page: number, s: Settings, seed: number) => Promise<Page>> = {
+type Fetcher = (tags: string, page: number, s: Settings) => Promise<Page>;
+
+const FETCHERS: Record<Source, Fetcher> = {
   paheal: fetchPaheal,
   e621: fetchE621,
   rule34xxx: fetchRule34xxx,
 };
 
-export async function fetchPosts(tags: string, page: number, settings: Settings, seed = 0): Promise<Page> {
-  const { posts, rawCount } = await FETCHERS[settings.source](tags, page, settings, seed);
+function shuffle<T>(list: T[]): T[] {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Quantas páginas cada busca parece ter (aprendido ao sortear páginas vazias).
+const pageCounts = new Map<string, number>();
+
+// Ordem aleatória feita no app (os sites não oferecem isso de forma confiável):
+// sorteia uma página da busca em ordem normal e embaralha os posts dela.
+async function fetchRandom(fetcher: Fetcher, tags: string, s: Settings): Promise<Page> {
+  const key = `${s.source}|${s.mediaFilter}|${tags}`;
+  const normal: Settings = { ...s, sort: 'recent' };
+  let max = pageCounts.get(key) ?? 100;
+  for (let i = 0; i < 4 && max > 1; i++) {
+    const p = Math.floor(Math.random() * max);
+    const res = await fetcher(tags, p, normal);
+    if (res.rawCount > 0) {
+      pageCounts.set(key, max);
+      return { posts: shuffle(res.posts), rawCount: res.rawCount };
+    }
+    max = Math.max(1, p); // página vazia: a busca tem menos páginas que isso
+  }
+  pageCounts.set(key, max);
+  const res = await fetcher(tags, 0, normal);
+  return { posts: shuffle(res.posts), rawCount: res.rawCount };
+}
+
+export async function fetchPosts(tags: string, page: number, settings: Settings): Promise<Page> {
+  const fetcher = FETCHERS[settings.source];
+  const { posts, rawCount } =
+    settings.sort === 'random' ? await fetchRandom(fetcher, tags, settings) : await fetcher(tags, page, settings);
   const blocked = new Set(
     [...HARD_BLOCKED, ...settings.blacklist, ...(settings.hideGay ? GAY_TAGS : [])].map((t) => t.toLowerCase()),
   );

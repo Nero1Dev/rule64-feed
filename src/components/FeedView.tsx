@@ -26,7 +26,6 @@ function interleave<T>(lists: T[][]): T[] {
 export default function FeedView(props: Props) {
   const { localPosts, settings, width, height } = props;
   const queryKey = JSON.stringify(props.queries); // string estável para as dependências do useCallback
-  const [seed] = useState(() => Math.floor(Math.random() * 10000));
   const [posts, setPosts] = useState<Post[]>([]);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -51,7 +50,7 @@ export default function FeedView(props: Props) {
         let ended = false;
         // Os filtros podem esvaziar uma página inteira: busca as seguintes até ter o que mostrar.
         for (let tries = 0; tries < 5 && added.length < 3 && !ended; tries++, p++) {
-          const results = await Promise.allSettled(queries.map((q) => fetchPosts(q, p, settings, seed)));
+          const results = await Promise.allSettled(queries.map((q) => fetchPosts(q, p, settings)));
           if (id !== requestId.current) return;
           const ok = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
           if (!ok.length) throw (results[0] as PromiseRejectedResult).reason;
@@ -72,7 +71,7 @@ export default function FeedView(props: Props) {
         if (id === requestId.current) setLoading(false);
       }
     },
-    [queryKey, seed, settings.source, settings.apiKey, settings.userId, settings.mediaFilter, settings.sort, settings.hideGay, settings.blacklist],
+    [queryKey, settings.source, settings.apiKey, settings.userId, settings.mediaFilter, settings.sort, settings.hideGay, settings.blacklist],
   );
 
   useEffect(() => {
