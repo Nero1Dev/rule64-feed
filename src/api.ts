@@ -59,10 +59,16 @@ async function getText(url: string): Promise<string> {
   const res = await fetch(url, { headers: HEADERS });
   const text = await res.text();
   if (!res.ok) {
-    if (text.startsWith('PROXY_FAIL') || /<html/i.test(text)) {
-      throw new ApiError('O servidor não conseguiu acessar o Paheal (rede bloqueada?). Troque a fonte para e621 em ⚙.');
+    // Só o proxy usa PROXY_FAIL: a conexão do servidor com o site falhou (rede/DNS).
+    if (text.startsWith('PROXY_FAIL')) {
+      throw new ApiError(
+        `O servidor não conseguiu se conectar ao Paheal (${text.slice(11, 80)}). Troque a fonte para e621 em ⚙.`,
+      );
     }
-    throw new ApiError(`HTTP ${res.status}: ${text.slice(0, 150)}`);
+    // O site respondeu, mas com erro: mostra o status e o título da página de erro.
+    const title = text.match(/<title>([^<]*)<\/title>/i)?.[1]?.trim();
+    const host = url.includes('paheal') ? 'Paheal' : new URL(url).host;
+    throw new ApiError(`${host} respondeu HTTP ${res.status}${title ? ` (${title})` : `: ${text.slice(0, 120)}`}`);
   }
   return text;
 }
@@ -73,7 +79,8 @@ const decode = (s: string) =>
   s.replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
 
 async function fetchPaheal(tags: string, page: number, s: Settings, seed: number): Promise<Page> {
-  const parts = [...feedTags(tags), ...excludes(s)];
+  // Sem tags negativas aqui: busca só com exclusões pesa demais no paheal. Os ocultos são filtrados no app.
+  const parts = feedTags(tags);
   if (s.mediaFilter === 'video') parts.push('ext:mp4');
   if (s.sort === 'score') parts.push('order:score_desc');
   if (s.sort === 'random') parts.push(`order:random_${seed}`); // semente fixa = páginas sem repetição
