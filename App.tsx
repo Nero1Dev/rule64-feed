@@ -91,9 +91,13 @@ function Main() {
   const current = feeds.find((f) => f.id === currentId);
   const isFavorites = currentId === FAVORITES_ID;
   // "Para você": mistura até 6 feeds salvos (os com tags) intercalados.
-  const mixQueries = feeds.map((f) => feedQuery(f, settings.source)).filter(Boolean).slice(0, 6);
-  const queries =
-    currentId === MIX_ID ? (mixQueries.length ? mixQueries : ['']) : [current ? feedQuery(current, settings.source) : ''];
+  const mixQueries = feeds
+    .map((f) => feedQuery(f, settings.source))
+    .filter((q): q is string => !!q)
+    .slice(0, 6);
+  const currentQuery = current ? feedQuery(current, settings.source) : '';
+  // [] = este feed não existe na fonte atual (o FeedView mostra o aviso).
+  const queries = currentId === MIX_ID ? (mixQueries.length ? mixQueries : ['']) : currentQuery === null ? [] : [currentQuery];
 
   return (
     <View style={styles.root} onLayout={(e) => setSize(e.nativeEvent.layout)}>

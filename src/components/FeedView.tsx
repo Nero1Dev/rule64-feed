@@ -75,13 +75,13 @@ export default function FeedView(props: Props) {
   );
 
   useEffect(() => {
-    if (localPosts) return;
+    if (localPosts || queryKey === '[]') return;
     setPosts([]);
     setDone(false);
     setActiveIndex(0);
     listRef.current?.scrollToOffset({ offset: 0, animated: false });
     loadPage(0, true);
-  }, [loadPage, localPosts]);
+  }, [loadPage, localPosts, queryKey]);
 
   const loadMore = () => {
     if (localPosts || loading || done || error) return;
@@ -94,6 +94,15 @@ export default function FeedView(props: Props) {
   }).current;
 
   const data = localPosts ?? posts;
+
+  if (!localPosts && !props.queries.length) {
+    return (
+      <View style={[styles.empty, { width, height }]}>
+        <Text style={styles.emptyText}>Este feed não existe nesta fonte (ela não marca esse tipo de conteúdo).</Text>
+        <Text style={[styles.emptyText, { marginTop: 8 }]}>Troque a fonte para e621 em ⚙.</Text>
+      </View>
+    );
+  }
 
   if (!data.length) {
     return (

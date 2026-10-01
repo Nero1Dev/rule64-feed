@@ -10,7 +10,7 @@ export const DEFAULT_FEEDS: Feed[] = [
 ];
 
 export const DEFAULT_SETTINGS: Settings = {
-  source: 'paheal',
+  source: 'e621', // marca bem o tipo de conteúdo (lésbico, futa, gay...), então os filtros funcionam
   apiKey: '',
   userId: '',
   blacklist: ['ai_generated', 'gore', 'scat'],

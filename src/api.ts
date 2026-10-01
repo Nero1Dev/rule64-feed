@@ -15,12 +15,13 @@ export const GAY_TAGS = ['gay', 'yaoi', 'male/male', 'male_only', 'male_on_male'
 export const PAGE_SIZE = 20;
 
 // Feeds prontos: cada site usa nomes de tag diferentes para a mesma coisa.
-export const PRESETS: Record<PresetKey, { label: string; tags: Record<Source, string> }> = {
-  lesbian: { label: 'Lésbico', tags: { paheal: 'lesbian', e621: 'female/female', rule34xxx: 'lesbian' } },
-  futa: { label: 'Futa', tags: { paheal: 'futanari', e621: 'gynomorph', rule34xxx: 'futanari' } },
+// null = a fonte não tem essa categoria (o paheal marca quase só personagens/séries/artistas).
+export const PRESETS: Record<PresetKey, { label: string; tags: Record<Source, string | null> }> = {
+  lesbian: { label: 'Lésbico', tags: { paheal: 'Yuri', e621: 'female/female', rule34xxx: 'lesbian' } },
+  futa: { label: 'Futa', tags: { paheal: null, e621: 'gynomorph', rule34xxx: 'futanari' } },
 };
 
-export function feedQuery(feed: Pick<Feed, 'tags' | 'preset'>, source: Source): string {
+export function feedQuery(feed: Pick<Feed, 'tags' | 'preset'>, source: Source): string | null {
   return feed.preset ? PRESETS[feed.preset].tags[source] : feed.tags;
 }
 
