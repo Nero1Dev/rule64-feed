@@ -18,9 +18,22 @@ type Props = {
   onShowTags: (post: Post) => void;
 };
 
+// Mostrado quando a mídia não carrega: ajuda a saber se é bloqueio do site ou da rede.
+function MediaError({ url }: { url: string }) {
+  return (
+    <View style={styles.errorBox}>
+      <Text style={styles.errorText}>Não foi possível carregar esta mídia.</Text>
+      <Pressable style={styles.errorButton} onPress={() => Linking.openURL(url)}>
+        <Text style={styles.errorButtonText}>Abrir arquivo direto ↗</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function VideoMedia({ post, active, muted }: { post: Post; active: boolean; muted: boolean }) {
   const [paused, setPaused] = useState(false);
   const [ready, setReady] = useState(false);
+  const [failed, setFailed] = useState(false);
   const player = useVideoPlayer({ uri: post.fileUrl, headers: MEDIA_HEADERS }, (p) => {
     p.loop = true;
     p.muted = muted;
@@ -38,6 +51,13 @@ function VideoMedia({ post, active, muted }: { post: Post; active: boolean; mute
   useEffect(() => {
     if (!active) setPaused(false);
   }, [active]);
+
+  useEffect(() => {
+    const sub = player.addListener('statusChange', ({ status }) => setFailed(status === 'error'));
+    return () => sub.remove();
+  }, [player]);
+
+  if (failed) return <MediaError url={post.fileUrl} />;
 
   return (
     <Pressable style={StyleSheet.absoluteFill} onPress={() => setPaused((v) => !v)}>
@@ -60,6 +80,7 @@ function VideoMedia({ post, active, muted }: { post: Post; active: boolean; mute
 
 function MediaItem(props: Props) {
   const { post, width, height, active, near, muted, favorite } = props;
+  const [imageFailed, setImageFailed] = useState(false);
 
   return (
     <View style={{ width, height, backgroundColor: '#000' }}>
@@ -69,8 +90,11 @@ function MediaItem(props: Props) {
         ) : (
           <Image source={{ uri: post.previewUrl }} style={StyleSheet.absoluteFill} contentFit="contain" />
         )
+      ) : imageFailed ? (
+        <MediaError url={post.displayUrl} />
       ) : (
         <Image
+          onError={() => setImageFailed(true)}
           source={{ uri: post.displayUrl, headers: MEDIA_HEADERS }}
           placeholder={{ uri: post.previewUrl }}
           placeholderContentFit="contain"
@@ -116,6 +140,10 @@ const styles = StyleSheet.create({
   // original e seria cortado em vez de se ajustar à tela.
   fill: { position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' },
   center: { position: 'absolute', alignSelf: 'center', top: '45%' },
+  errorBox: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  errorText: { color: '#ccc', fontSize: 15, textAlign: 'center' },
+  errorButton: { marginTop: 14, backgroundColor: '#333', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20 },
+  errorButtonText: { color: '#fff', fontWeight: '700' },
   pauseIcon: { fontSize: 64, color: 'rgba(255,255,255,0.8)' },
   actions: { position: 'absolute', right: 10, bottom: 140, alignItems: 'center', gap: 20 },
   action: { alignItems: 'center' },
