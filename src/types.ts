@@ -2,6 +2,8 @@ export type MediaKind = 'image' | 'gif' | 'video';
 
 export type Post = {
   id: number;
+  origin?: Source; // site de onde veio
+
   kind: MediaKind;
   fileUrl: string;
   displayUrl: string; // versão mais leve para exibir (sample) quando existir
@@ -21,8 +23,10 @@ export type Feed = {
 
 export type MediaFilter = 'all' | 'video' | 'image';
 export type SortMode = 'recent' | 'score';
+export type Source = 'paheal' | 'e621' | 'rule34xxx';
 
 export type Settings = {
+  source: Source;
   apiKey: string;
   userId: string;
   blacklist: string[];

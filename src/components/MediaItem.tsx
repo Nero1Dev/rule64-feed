@@ -85,7 +85,7 @@ function MediaItem(props: Props) {
         <ActionButton label={favorite ? '♥' : '♡'} caption="Salvar" onPress={() => props.onToggleFavorite(post)} highlight={favorite} />
         <ActionButton label="#" caption="Tags" onPress={() => props.onShowTags(post)} />
         {post.kind === 'video' && <ActionButton label={muted ? '🔇' : '🔊'} caption="Som" onPress={props.onToggleMute} />}
-        <ActionButton label="↗" caption="Abrir" onPress={() => Linking.openURL(postPageUrl(post.id))} />
+        <ActionButton label="↗" caption="Abrir" onPress={() => Linking.openURL(postPageUrl(post.id, post.origin ?? 'rule34xxx'))} />
       </View>
 
       <View style={styles.info} pointerEvents="none">

@@ -5,11 +5,12 @@ const KEYS = { feeds: 'feeds', settings: 'settings', favorites: 'favorites' };
 
 export const DEFAULT_FEEDS: Feed[] = [
   { id: 'all', name: 'Tudo', tags: '' },
-  { id: 'videos', name: 'Vídeos', tags: 'video' },
-  { id: 'top', name: 'Top', tags: 'score:>=500' },
+  { id: 'genshin', name: 'Genshin', tags: 'genshin_impact' },
+  { id: 'overwatch', name: 'Overwatch', tags: 'overwatch' },
 ];
 
 export const DEFAULT_SETTINGS: Settings = {
+  source: 'paheal',
   apiKey: '',
   userId: '',
   blacklist: ['ai_generated', 'gore', 'scat'],

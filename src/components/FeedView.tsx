@@ -49,7 +49,7 @@ export default function FeedView(props: Props) {
         if (id === requestId.current) setLoading(false);
       }
     },
-    [tags, settings.apiKey, settings.userId, settings.mediaFilter, settings.sort, settings.blacklist],
+    [tags, settings.source, settings.apiKey, settings.userId, settings.mediaFilter, settings.sort, settings.blacklist],
   );
 
   useEffect(() => {

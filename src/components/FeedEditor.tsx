@@ -1,18 +1,19 @@
 import { useEffect, useState } from 'react';
 import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { autocomplete, TagSuggestion } from '../api';
-import { Feed } from '../types';
+import { Feed, Source } from '../types';
 import { ui } from './ui';
 
 type Props = {
   visible: boolean;
+  source: Source;
   initial?: Feed;
   onClose: () => void;
   onSave: (feed: Feed) => void;
   onDelete?: (feed: Feed) => void;
 };
 
-export default function FeedEditor({ visible, initial, onClose, onSave, onDelete }: Props) {
+export default function FeedEditor({ visible, source, initial, onClose, onSave, onDelete }: Props) {
   const [name, setName] = useState('');
   const [tags, setTags] = useState<string[]>([]);
   const [input, setInput] = useState('');
@@ -28,14 +29,14 @@ export default function FeedEditor({ visible, initial, onClose, onSave, onDelete
   useEffect(() => {
     let cancelled = false;
     const t = setTimeout(async () => {
-      const res = await autocomplete(input).catch(() => []);
+      const res = await autocomplete(input, source);
       if (!cancelled) setSuggestions(res);
     }, 250);
     return () => {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [input]);
+  }, [input, source]);
 
   const addTag = (raw: string) => {
     const neg = input.trim().startsWith('-');

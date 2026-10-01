@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Linking, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
-import { HARD_BLOCKED } from '../api';
-import { MediaFilter, Settings, SortMode } from '../types';
+import { HARD_BLOCKED, SOURCES } from '../api';
+import { MediaFilter, Settings, SortMode, Source } from '../types';
 import { ui } from './ui';
 
 type Props = {
@@ -48,6 +48,13 @@ export default function SettingsSheet({ visible, settings, onClose, onSave }: Pr
           <ScrollView keyboardShouldPersistTaps="handled">
             <Text style={ui.title}>Configurações</Text>
 
+            <Text style={ui.label}>Fonte</Text>
+            <Segment<Source>
+              value={draft.source}
+              options={(Object.keys(SOURCES) as Source[]).map((k) => [k, SOURCES[k].label])}
+              onChange={(source) => setDraft({ ...draft, source })}
+            />
+
             <Text style={ui.label}>Tipo de mídia</Text>
             <Segment<MediaFilter>
               value={draft.mediaFilter}
@@ -73,7 +80,9 @@ export default function SettingsSheet({ visible, settings, onClose, onSave }: Pr
             />
             <Text style={[ui.label, { fontSize: 11 }]}>Sempre bloqueadas: {HARD_BLOCKED.join(', ')}</Text>
 
-            <Text style={ui.label}>API do rule34 (Minha conta → Options → API Access Credentials)</Text>
+            {draft.source === 'rule34xxx' && (
+            <>
+            <Text style={ui.label}>API do rule34.xxx (My Account → Options → API Access Credentials)</Text>
             <TextInput
               style={ui.input}
               value={draft.userId}
@@ -96,6 +105,8 @@ export default function SettingsSheet({ visible, settings, onClose, onSave }: Pr
             <Pressable onPress={() => Linking.openURL('https://rule34.xxx/index.php?page=account&s=options')}>
               <Text style={[ui.label, { color: '#ff6b8a' }]}>Abrir página de credenciais ↗</Text>
             </Pressable>
+            </>
+            )}
 
             <View style={ui.row}>
               <Pressable style={[ui.button, ui.secondary]} onPress={onClose}>

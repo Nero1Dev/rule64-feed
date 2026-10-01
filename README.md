@@ -26,10 +26,13 @@ npx expo start
 
 Escaneie o QR code com o app **Expo Go** no celular.
 
-## API
+## Fontes (⚙ → Fonte)
 
-A API do rule34 exige credenciais: crie uma conta, vá em *My Account → Options → API Access Credentials*
-e cole `user_id` e `api_key` em ⚙ Configurações no app.
+| Fonte | Login | Observação |
+|---|---|---|
+| **Paheal** (padrão) | não | Na web passa pelo proxy `/proxy/paheal` do servidor (`metro.config.js`) |
+| **e621** | não | Chamada direta do celular |
+| **rule34.xxx** | `api_key` + `user_id` | *My Account → Options → API Access Credentials* |
 
 ## Gerar APK
 

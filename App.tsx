@@ -132,6 +132,7 @@ function Main() {
 
       <FeedEditor
         visible={editor.open}
+        source={settings.source}
         initial={editor.feed}
         onClose={() => setEditor({ open: false })}
         onSave={saveFeed}
