@@ -17,6 +17,15 @@ npx expo start --web --port 8081
 
 Abra no navegador do celular e use "Adicionar à tela inicial".
 
+## Deploy no Vercel
+
+Já configurado (`vercel.json` + `api/paheal.ts`, que é o proxy do Paheal em produção).
+
+- Pelo site: vercel.com → *Add New → Project* → importe este repositório → *Deploy* (não precisa mudar nenhuma opção).
+- Ou pela CLI: `npm i -g vercel` e `vercel --prod`.
+
+Depois abra o link `https://<projeto>.vercel.app` no celular e use "Adicionar à tela inicial".
+
 ## Rodar (Expo Go)
 
 ```bash

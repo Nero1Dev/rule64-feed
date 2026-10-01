@@ -1,6 +1,6 @@
 // Service worker mínimo: guarda o app (HTML/JS/ícones) para abrir rápido e offline.
 // Mídias e API não são cacheadas aqui.
-const CACHE = 'r34-feed-v1';
+const CACHE = 'r34-feed-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => {
@@ -12,6 +12,7 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/proxy/') || url.pathname.startsWith('/api/')) return;
   // Rede primeiro (pega atualizações), cache como fallback.
   e.respondWith(
     fetch(e.request)
