@@ -34,6 +34,10 @@ export const SOURCES: Record<Source, { label: string; site: string }> = {
 // O paheal não libera CORS: no navegador as chamadas passam pelo proxy do servidor (metro.config.js).
 const PAHEAL_API = IS_WEB ? '/proxy/paheal' : 'https://rule34.paheal.net';
 const E621_API = 'https://e621.net';
+// O CDN do e621 não deixa outros sites embutirem as mídias: na web elas passam pelo domínio do app
+// (rewrite /media/e621 no vercel.json; em desenvolvimento, metro.config.js).
+const E621_CDN = 'https://static1.e621.net/';
+const e621Media = (url: string) => (IS_WEB && url.startsWith(E621_CDN) ? `/media/e621/${url.slice(E621_CDN.length)}` : url);
 const R34_API = 'https://api.rule34.xxx';
 
 export class ApiError extends Error {}
@@ -129,9 +133,9 @@ async function fetchE621(tags: string, page: number, s: Settings): Promise<Page>
       return {
         id: p.id,
         kind,
-        fileUrl: p.file.url!,
-        displayUrl: kind === 'image' && p.sample.has && p.sample.url ? p.sample.url : p.file.url!,
-        previewUrl: p.preview.url ?? p.file.url!,
+        fileUrl: e621Media(p.file.url!),
+        displayUrl: e621Media(kind === 'image' && p.sample.has && p.sample.url ? p.sample.url : p.file.url!),
+        previewUrl: e621Media(p.preview.url ?? p.file.url!),
         width: p.file.width,
         height: p.file.height,
         score: p.score.total,
