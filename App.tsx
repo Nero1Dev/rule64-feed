@@ -8,7 +8,7 @@ import SettingsSheet from './src/components/SettingsSheet';
 import TagsSheet from './src/components/TagsSheet';
 import { feedQuery } from './src/api';
 import * as store from './src/storage';
-import { Feed, Post, Settings } from './src/types';
+import { Feed, Post, postKey, Query, Settings } from './src/types';
 
 const FAVORITES_ID = '__favorites__';
 const MIX_ID = '__mix__';
@@ -44,11 +44,12 @@ function Main() {
     store.saveSettings(next);
   };
 
-  const favoriteIds = useMemo(() => new Set(favorites.map((p) => p.id)), [favorites]);
+  const favoriteKeys = useMemo(() => new Set(favorites.map(postKey)), [favorites]);
 
   const toggleFavorite = useCallback((post: Post) => {
     setFavorites((prev) => {
-      const next = prev.some((p) => p.id === post.id) ? prev.filter((p) => p.id !== post.id) : [post, ...prev];
+      const key = postKey(post);
+      const next = prev.some((p) => postKey(p) === key) ? prev.filter((p) => postKey(p) !== key) : [post, ...prev];
       store.saveFavorites(next);
       return next;
     });
@@ -77,10 +78,12 @@ function Main() {
   };
 
   const openTag = (tag: string) => {
+    // O feed novo fica na fonte de onde veio o post (as tags são daquele site).
+    const source = tagsPost?.origin;
     setTagsPost(null);
-    const existing = feeds.find((f) => f.tags === tag);
+    const existing = feeds.find((f) => f.tags === tag && f.source === source);
     if (existing) return setCurrentId(existing.id);
-    saveFeed({ id: String(Date.now()), name: tag.replace(/_/g, ' '), tags: tag });
+    saveFeed({ id: String(Date.now()), name: tag.replace(/_/g, ' '), tags: tag, source });
   };
 
   const blockTag = (tag: string) => {
@@ -91,13 +94,16 @@ function Main() {
   const current = feeds.find((f) => f.id === currentId);
   const isFavorites = currentId === FAVORITES_ID;
   // "Para você": mistura até 6 feeds salvos (os com tags) intercalados.
+  const allQuery: Query = { source: settings.source, tags: '' };
+  // Entram no mix os feeds com tags ou com fonte própria (ex.: RedGIFs em alta).
   const mixQueries = feeds
     .map((f) => feedQuery(f, settings.source))
-    .filter((q): q is string => !!q)
+    .filter((q): q is Query => !!q && (!!q.tags || q.source !== settings.source))
     .slice(0, 6);
-  const currentQuery = current ? feedQuery(current, settings.source) : '';
+  const currentQuery = current ? feedQuery(current, settings.source) : allQuery;
   // [] = este feed não existe na fonte atual (o FeedView mostra o aviso).
-  const queries = currentId === MIX_ID ? (mixQueries.length ? mixQueries : ['']) : currentQuery === null ? [] : [currentQuery];
+  const queries =
+    currentId === MIX_ID ? (mixQueries.length ? mixQueries : [allQuery]) : currentQuery === null ? [] : [currentQuery];
 
   return (
     <View style={styles.root} onLayout={(e) => setSize(e.nativeEvent.layout)}>
@@ -111,7 +117,7 @@ function Main() {
           settings={settings}
           width={size.width}
           height={size.height}
-          favoriteIds={favoriteIds}
+          favoriteKeys={favoriteKeys}
           onToggleMute={toggleMute}
           onToggleFavorite={toggleFavorite}
           onShowTags={setTagsPost}

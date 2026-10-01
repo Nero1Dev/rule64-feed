@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Platform, Pressable, StyleSheet, Text, View, ViewToken } from 'react-native';
 import { fetchPosts, PAGE_SIZE } from '../api';
-import { Post, Settings } from '../types';
+import { Post, postKey, Query, Settings } from '../types';
 import MediaItem from './MediaItem';
 
 type Props = {
-  queries: string[]; // uma busca, ou várias intercaladas (feed "Para você")
+  queries: Query[]; // uma busca, ou várias intercaladas (feed "Para você")
   localPosts?: Post[]; // feed local (favoritos) em vez da API
   settings: Settings;
   width: number;
   height: number;
-  favoriteIds: Set<number>;
+  favoriteKeys: Set<string>;
   onToggleMute: () => void;
   onToggleFavorite: (post: Post) => void;
   onShowTags: (post: Post) => void;
@@ -43,21 +43,21 @@ export default function FeedView(props: Props) {
       setLoading(true);
       setError(null);
       try {
-        const queries = JSON.parse(queryKey) as string[];
-        const known = new Set(reset ? [] : postsRef.current.map((x) => x.id));
+        const queries = JSON.parse(queryKey) as Query[];
+        const known = new Set(reset ? [] : postsRef.current.map(postKey));
         const added: Post[] = [];
         let p = start;
         let ended = false;
         // Os filtros podem esvaziar uma página inteira: busca as seguintes até ter o que mostrar.
         for (let tries = 0; tries < 5 && added.length < 3 && !ended; tries++, p++) {
-          const results = await Promise.allSettled(queries.map((q) => fetchPosts(q, p, settings)));
+          const results = await Promise.allSettled(queries.map((q) => fetchPosts(q.tags, p, { ...settings, source: q.source })));
           if (id !== requestId.current) return;
           const ok = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []));
           if (!ok.length) throw (results[0] as PromiseRejectedResult).reason;
           ended = ok.every((r) => r.rawCount === 0);
           for (const post of interleave(ok.map((r) => r.posts))) {
-            if (!known.has(post.id)) {
-              known.add(post.id);
+            if (!known.has(postKey(post))) {
+              known.add(postKey(post));
               added.push(post);
             }
           }
@@ -127,7 +127,7 @@ export default function FeedView(props: Props) {
     <FlatList
       ref={listRef}
       data={data}
-      keyExtractor={(p) => String(p.id)}
+      keyExtractor={postKey}
       renderItem={({ item, index }) => (
         <MediaItem
           post={item}
@@ -136,7 +136,7 @@ export default function FeedView(props: Props) {
           active={index === activeIndex}
           near={Math.abs(index - activeIndex) <= 1}
           muted={settings.muted}
-          favorite={props.favoriteIds.has(item.id)}
+          favorite={props.favoriteKeys.has(postKey(item))}
           onToggleMute={props.onToggleMute}
           onToggleFavorite={props.onToggleFavorite}
           onShowTags={props.onShowTags}

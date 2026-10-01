@@ -6,7 +6,9 @@
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/proxy/paheal/:path*", "destination": "/api/paheal?path=:path*" },
-    { "source": "/media/e621/:path*", "destination": "https://static1.e621.net/:path*" }
+    { "source": "/proxy/redgifs/:path*", "destination": "/api/redgifs?path=:path*" },
+    { "source": "/media/e621/:path*", "destination": "https://static1.e621.net/:path*" },
+    { "source": "/media/redgifs/:path*", "destination": "https://media.redgifs.com/:path*" }
   ],
   "headers": [
     {

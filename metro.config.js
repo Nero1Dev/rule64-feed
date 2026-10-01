@@ -9,6 +9,8 @@ const config = getDefaultConfig(__dirname);
 const PROXIES = {
   '/proxy/paheal/': 'https://rule34.paheal.net/',
   '/media/e621/': 'https://static1.e621.net/',
+  '/media/redgifs/': 'https://media.redgifs.com/',
+  // A API do RedGIFs (token) só tem proxy em produção: api/redgifs.ts.
 };
 
 const originalEnhance = config.server?.enhanceMiddleware;

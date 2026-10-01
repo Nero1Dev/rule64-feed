@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { Feed, MediaKind, Post, PresetKey, Settings, Source } from './types';
+import { Feed, MediaKind, Post, PresetKey, Query, Settings, Source } from './types';
 
 const IS_WEB = Platform.OS === 'web';
 const UA = 'rule34-feed/1.0 (by nero1dev)';
@@ -17,18 +17,24 @@ export const PAGE_SIZE = 20;
 // Feeds prontos: cada site usa nomes de tag diferentes para a mesma coisa.
 // null = a fonte não tem essa categoria (o paheal marca quase só personagens/séries/artistas).
 export const PRESETS: Record<PresetKey, { label: string; tags: Record<Source, string | null> }> = {
-  lesbian: { label: 'Lésbico', tags: { paheal: 'Yuri', e621: 'female/female', rule34xxx: 'lesbian' } },
-  futa: { label: 'Futa', tags: { paheal: null, e621: 'gynomorph', rule34xxx: 'futanari' } },
+  lesbian: {
+    label: 'Lésbico',
+    tags: { paheal: 'Yuri', e621: 'female/female', redgifs: 'Lesbian', rule34xxx: 'lesbian' },
+  },
+  futa: { label: 'Futa', tags: { paheal: null, e621: 'gynomorph', redgifs: 'Futanari', rule34xxx: 'futanari' } },
 };
 
-export function feedQuery(feed: Pick<Feed, 'tags' | 'preset'>, source: Source): string | null {
-  return feed.preset ? PRESETS[feed.preset].tags[source] : feed.tags;
+// Busca concreta de um feed. null = o feed não existe nessa fonte.
+export function feedQuery(feed: Pick<Feed, 'tags' | 'preset' | 'source'>, defaultSource: Source): Query | null {
+  const source = feed.source ?? defaultSource;
+  const tags = feed.preset ? PRESETS[feed.preset].tags[source] : feed.tags;
+  return tags === null ? null : { source, tags };
 }
-
 
 export const SOURCES: Record<Source, { label: string; site: string }> = {
   paheal: { label: 'Paheal', site: 'https://rule34.paheal.net' },
   e621: { label: 'e621', site: 'https://e621.net' },
+  redgifs: { label: 'RedGIFs', site: 'https://www.redgifs.com' },
   rule34xxx: { label: 'rule34.xxx', site: 'https://rule34.xxx' },
 };
 
@@ -40,6 +46,11 @@ const E621_API = 'https://e621.net';
 const E621_CDN = 'https://static1.e621.net/';
 const e621Media = (url: string) => (IS_WEB && url.startsWith(E621_CDN) ? `/media/e621/${url.slice(E621_CDN.length)}` : url);
 const R34_API = 'https://api.rule34.xxx';
+// RedGIFs exige token temporário: na web o proxy (api/redgifs.ts) cuida dele; no app nativo, o próprio app.
+const REDGIFS_API = 'https://api.redgifs.com/';
+const REDGIFS_CDN = 'https://media.redgifs.com/';
+const redgifsMedia = (url: string) =>
+  IS_WEB && url.startsWith(REDGIFS_CDN) ? `/media/redgifs/${url.slice(REDGIFS_CDN.length)}` : url;
 
 export class ApiError extends Error {}
 
@@ -63,12 +74,12 @@ async function getText(url: string): Promise<string> {
     // Só o proxy usa PROXY_FAIL: a conexão do servidor com o site falhou (rede/DNS).
     if (text.startsWith('PROXY_FAIL')) {
       throw new ApiError(
-        `O servidor não conseguiu se conectar ao Paheal (${text.slice(11, 80)}). Troque a fonte para e621 em ⚙.`,
+        `O servidor não conseguiu acessar a fonte (${text.slice(11, 80)}). Tente outra fonte em ⚙.`,
       );
     }
     // O site respondeu, mas com erro: mostra o status e o título da página de erro.
     const title = text.match(/<title>([^<]*)<\/title>/i)?.[1]?.trim();
-    const host = url.includes('paheal') ? 'Paheal' : new URL(url).host;
+    const host = url.includes('paheal') ? 'Paheal' : url.includes('redgifs') ? 'RedGIFs' : new URL(url).host;
     throw new ApiError(`${host} respondeu HTTP ${res.status}${title ? ` (${title})` : `: ${text.slice(0, 120)}`}`);
   }
   return text;
@@ -205,6 +216,65 @@ async function fetchRule34xxx(tags: string, page: number, s: Settings): Promise<
   return { posts, rawCount: raw.length };
 }
 
+// ---------- RedGIFs (JSON, token temporário) ----------
+
+type RedgifsGif = {
+  id: string;
+  urls: { sd?: string; hd?: string; poster?: string; thumbnail?: string };
+  tags?: string[];
+  width: number;
+  height: number;
+  likes?: number;
+};
+
+let redgifsToken: string | null = null;
+
+async function redgifsGet(pathAndQuery: string): Promise<string> {
+  if (IS_WEB) return getText(`/proxy/redgifs/${pathAndQuery}`);
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (!redgifsToken) redgifsToken = JSON.parse(await getText(`${REDGIFS_API}v2/auth/temporary`)).token;
+    const res = await fetch(REDGIFS_API + pathAndQuery, { headers: { ...HEADERS, Authorization: `Bearer ${redgifsToken}` } });
+    if (res.status === 401) {
+      redgifsToken = null; // token vencido: pega outro
+      continue;
+    }
+    const text = await res.text();
+    if (!res.ok) throw new ApiError(`RedGIFs respondeu HTTP ${res.status}: ${text.slice(0, 120)}`);
+    return text;
+  }
+  throw new ApiError('O RedGIFs recusou o token de acesso.');
+}
+
+const REDGIFS_ORDER: Record<Settings['sort'], string> = { recent: 'latest', score: 'top', random: 'trending' };
+
+async function fetchRedgifs(tags: string, page: number, s: Settings): Promise<Page> {
+  if (s.mediaFilter === 'image') return { posts: [], rawCount: 0 }; // RedGIFs é só vídeo
+  const params = new URLSearchParams({ order: REDGIFS_ORDER[s.sort], count: String(PAGE_SIZE), page: String(page + 1) });
+  const search = feedTags(tags).join(',');
+  if (search) params.set('search_text', search);
+  const data = JSON.parse(await redgifsGet(`v2/gifs/search?${params}`)) as { gifs?: RedgifsGif[] };
+  const gifs = data.gifs ?? [];
+
+  const posts = gifs
+    .filter((g) => g.urls.sd || g.urls.hd)
+    .map((g): Post => {
+      const url = g.urls.sd ?? g.urls.hd!; // SD: carrega rápido e gasta menos banda
+      return {
+        id: g.id,
+        kind: kindOf(url),
+        fileUrl: redgifsMedia(url),
+        displayUrl: redgifsMedia(url),
+        previewUrl: redgifsMedia(g.urls.poster ?? g.urls.thumbnail ?? url),
+        width: g.width,
+        height: g.height,
+        score: g.likes ?? 0,
+        tags: g.tags ?? [],
+        source: '',
+      };
+    });
+  return { posts, rawCount: gifs.length };
+}
+
 // ---------- API comum ----------
 
 type Fetcher = (tags: string, page: number, s: Settings) => Promise<Page>;
@@ -212,6 +282,7 @@ type Fetcher = (tags: string, page: number, s: Settings) => Promise<Page>;
 const FETCHERS: Record<Source, Fetcher> = {
   paheal: fetchPaheal,
   e621: fetchE621,
+  redgifs: fetchRedgifs,
   rule34xxx: fetchRule34xxx,
 };
 
@@ -282,6 +353,15 @@ export async function autocomplete(q: string, source: Source): Promise<TagSugges
       if (IS_WEB) params.set('_client', UA);
       const data = JSON.parse(await getText(`${E621_API}/tags/autocomplete.json?${params}`)) as { name: string; post_count: number }[];
       list = data.map((t) => ({ label: `${t.name} (${t.post_count})`, value: t.name }));
+    } else if (source === 'redgifs') {
+      const data = JSON.parse(await redgifsGet(`v2/search/suggest?query=${encodeURIComponent(term)}`));
+      const items: { text?: string; name?: string; count?: number; gifs?: number }[] = Array.isArray(data)
+        ? data
+        : (data.tags ?? data.items ?? []);
+      list = items
+        .map((t) => ({ name: t.text ?? t.name ?? '', count: t.count ?? t.gifs }))
+        .filter((t) => t.name)
+        .map((t) => ({ label: t.count != null ? `${t.name} (${t.count})` : t.name, value: t.name.replace(/\s+/g, '_') }));
     } else {
       list = JSON.parse(await getText(`${R34_API}/autocomplete.php?q=${encodeURIComponent(term)}`));
     }
@@ -291,9 +371,10 @@ export async function autocomplete(q: string, source: Source): Promise<TagSugges
   return list.filter((s) => !HARD_BLOCKED.includes(s.value.toLowerCase())).slice(0, 15);
 }
 
-export function postPageUrl(id: number, source: Source): string {
+export function postPageUrl(id: number | string, source: Source): string {
   if (source === 'paheal') return `https://rule34.paheal.net/post/view/${id}`;
   if (source === 'e621') return `https://e621.net/posts/${id}`;
+  if (source === 'redgifs') return `https://www.redgifs.com/watch/${id}`;
   return `https://rule34.xxx/index.php?page=post&s=view&id=${id}`;
 }
 
